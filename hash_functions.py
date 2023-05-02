@@ -64,6 +64,7 @@ def minus_hash(table_size: int, minus: int = 42) -> Callable[[int], int]:
 
 ## Good hashing functions
 
+
 def multiplicative_method_hash(table_size: int,
                                A: float = 0.42) -> Callable[[int], int]:
     return lambda key: floor(table_size * ((key * A) % 1))
@@ -73,7 +74,7 @@ def knuth_multiplicative_method_hash(table_size: int) -> Callable[[int], int]:
     """
     Return a hash function that uses the Knuth multiplicative method.
     """
-    return lambda key: floor((key * (sqrt(5) - 1) / 2) % 1 * table_size)
+    return lambda key: floor((key * (sqrt(5) - 1) / 2) % table_size)
 
 
 def murmur_hash3_x86_32_hash(table_size: int, seed=0) -> Callable[[int], int]:

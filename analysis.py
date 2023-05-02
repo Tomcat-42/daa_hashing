@@ -10,12 +10,7 @@ from pydaa.hashing import (open_addressing_hash_table,
                            separate_chaining_hash_table)
 
 # Hash functions
-from hash_functions import (identity_hash, modulo_hash, multiplication_hash,
-                            left_shift_hash, right_shift_hash, add_hash,
-                            xor_hash, minus_hash, multiplicative_method_hash,
-                            knuth_multiplicative_method_hash,
-                            murmur_hash3_x86_32_hash, farm_hash_hash,
-                            city_hash_hash)
+from hash_functions import (knuth_multiplicative_method_hash, modulo_hash)
 
 # Visualizations
 from picods import (picoplot, picotable)
@@ -53,19 +48,19 @@ data_search = list(
 # For each hash function, we want to generate a hash function for each table size
 # e.g. hash_functions["multiplicative_method"](table_size)(key) will return the hash value for the key
 hash_functions = {
-    "identity": identity_hash,
+    # "identity": identity_hash,
     "modulo": modulo_hash,
-    "multiplication": multiplication_hash,
-    "left_shift": left_shift_hash,
+    # "multiplication": multiplication_hash,
+    # "left_shift": left_shift_hash,
     # "right_shift": right_shift_hash,
     # "add": add_hash,
     # "xor": xor_hash,
     # "minus": minus_hash,
-    "multiplicative_method": multiplicative_method_hash,
-    "knuth_multiplicative_method": knuth_multiplicative_method_hash,
-    "murmur_hash3_x86_32": murmur_hash3_x86_32_hash,
-    "farm_hash": farm_hash_hash,
-    "city_hash": city_hash_hash,
+    # "multiplicative_method": multiplicative_method_hash,
+    # "knuth_multiplicative_method": knuth_multiplicative_method_hash,
+    # "murmur_hash3_x86_32": murmur_hash3_x86_32_hash,
+    # "farm_hash": farm_hash_hash,
+    # "city_hash": city_hash_hash,
 }
 
 # Results construction
@@ -112,6 +107,14 @@ def process_data(
         operation: Operation) -> Dict[str, Dict[str, List[Dict[str, Any]]]]:
     results: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
 
+    # print(f"operation: {operation.value}")
+    # print(f"hash_tables: {hash_tables.keys()}")
+    # print(f"hash_functions: {hash_functions.keys()}")
+    # print(f"data: {data}")
+
+    if operation == Operation.SEARCH:
+        print(hash_tables["open_addressing"])
+
     for table_type, table_constructor in hash_tables.items():
         results[table_type] = {}
 
@@ -120,6 +123,7 @@ def process_data(
 
             for data_entry in data:
                 table_size = data_entry["size"]
+                # table_size = 500
                 hash_func = hash_func_constructor(table_size)
                 table = table_constructor(table_size, hash_func)
 
@@ -134,6 +138,12 @@ def process_data(
 
                     comparisons += comp
                     total_time += time
+
+                # if comparisons == 0:
+                #     print(f"table_type: {table_type}")
+                #     print(f"hash_func_name: {hash_func_name}")
+                #     print(f"table_size: {table_size}")
+                #     print()
 
                 results[table_type][hash_func_name].append({
                     "size":
@@ -154,16 +164,18 @@ hash_tables = {
 
 output = {
     "build":
-    process_data(data_build,
+    process_data(data_build[0:1],
                  hash_tables,
                  hash_functions,
                  operation=Operation.INSERT),
     "search":
-    process_data(data_search,
+    process_data(data_search[0:1],
                  hash_tables,
                  hash_functions,
                  operation=Operation.SEARCH),
 }
+
+# pp(output)
 
 
 def save_results(output: Dict[str, Dict[str, Dict[str, List[Dict[str,
@@ -178,9 +190,9 @@ def load_results() -> Dict[str, Dict[str, Dict[str, List[Dict[str, Any]]]]]:
 
 
 print("saving results")
-# save_results(output)
+save_results(output)
 print("results saved")
-output = load_results()
+# output = load_results()
 
 
 def plot_results(output: Dict[str, Dict[str, Dict[str, List[Dict[str,
@@ -251,4 +263,4 @@ def plot_results(output: Dict[str, Dict[str, Dict[str, List[Dict[str,
 
 
 # Call the plot_results function with the output dictionary
-plot_results(output)
+# plot_results(output)
