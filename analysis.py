@@ -1,8 +1,7 @@
 import os
 from enum import Enum
 from typing import Any, Callable, Dict, List
-from pprint import pprint as pp
-
+from concurrent.futures import ThreadPoolExecutor
 
 # File parsing
 from pyaon.hashing import (load)
@@ -97,7 +96,33 @@ def build_hash_tables(
     return constructed_hash_tables
 
 
-# process_data function
+def process_single_entry(
+    entry: Dict[str, Any], table_type: str, hash_func_name: str,
+    operation: Operation, table_constructor: Callable[..., Any],
+    hash_func_constructor: Callable[[int], Callable[[int], int]],
+    constructed_hash_tables: Dict[str, Dict[str, Dict[int, Any]]]
+) -> Dict[str, Any]:
+    print(
+        f"Processing {table_type} {hash_func_name} {entry['size']} on {operation.value}"
+    )
+    table_size = entry["size"]
+    table = constructed_hash_tables[table_type][hash_func_name][table_size]
+
+    total_time = 0
+    comparisons = 0
+
+    for key in entry["data"]:
+        if operation == Operation.INSERT:
+            _, (time, comp) = table.insert(key)
+        else:
+            _, (time, comp) = table.search(key)
+
+        comparisons += comp
+        total_time += time
+
+    return {"size": table_size, "time": total_time, "comparisons": comparisons}
+
+
 def process_data(
         data: List[Dict[str, Any]], hash_tables: Dict[str, Callable[..., Any]],
         hash_functions: Dict[str, Callable[[int], Callable[[int], int]]],
@@ -105,40 +130,22 @@ def process_data(
         operation: Operation) -> Dict[str, Dict[str, List[Dict[str, Any]]]]:
     results: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
 
-    for table_type, table_constructor in hash_tables.items():
-        results[table_type] = {}
+    with ThreadPoolExecutor() as executor:
+        for table_type, table_constructor in hash_tables.items():
+            results[table_type] = {}
 
-        for hash_func_name, hash_func_constructor in hash_functions.items():
-            results[table_type][hash_func_name] = []
+            for hash_func_name, hash_func_constructor in hash_functions.items(
+            ):
+                results[table_type][hash_func_name] = []
 
-            for data_entry in data:
-                print(
-                    f"Processing {table_type} {hash_func_name} {data_entry['size']} on {operation.value}"
-                )
-                table_size = data_entry["size"]
-                table = constructed_hash_tables[table_type][hash_func_name][
-                    table_size]
+                processed_entries = list(
+                    executor.map(
+                        lambda entry: process_single_entry(
+                            entry, table_type, hash_func_name, operation,
+                            table_constructor, hash_func_constructor,
+                            constructed_hash_tables), data))
 
-                total_time = 0
-                comparisons = 0
-
-                for key in data_entry["data"]:
-                    if operation == Operation.INSERT:
-                        _, (time, comp) = table.insert(key)
-                    else:
-                        _, (time, comp) = table.search(key)
-
-                    comparisons += comp
-                    total_time += time
-
-                results[table_type][hash_func_name].append({
-                    "size":
-                    table_size,
-                    "time":
-                    total_time,
-                    "comparisons":
-                    comparisons
-                })
+                results[table_type][hash_func_name] = processed_entries
 
     return results
 
@@ -148,20 +155,21 @@ constructed_hash_tables = build_hash_tables(
     [entry["size"] for entry in data_build], hash_tables, hash_functions)
 
 # Generate output
-# output = {
-#     "build":
-#     process_data(data_build,
-#                  hash_tables,
-#                  hash_functions,
-#                  constructed_hash_tables,
-#                  operation=Operation.INSERT),
-#     "search":
-#     process_data(data_search,
-#                  hash_tables,
-#                  hash_functions,
-#                  constructed_hash_tables,
-#                  operation=Operation.SEARCH),
-# }
+output = {
+    "build":
+    process_data(data_build,
+                 hash_tables,
+                 hash_functions,
+                 constructed_hash_tables,
+                 operation=Operation.INSERT),
+    "search":
+    process_data(data_search,
+                 hash_tables,
+                 hash_functions,
+                 constructed_hash_tables,
+                 operation=Operation.SEARCH),
+}
+
 
 def save_results(output: Dict[str, Dict[str, Dict[str, List[Dict[str,
                                                                  Any]]]]]):
@@ -177,7 +185,7 @@ def load_results() -> Dict[str, Dict[str, Dict[str, List[Dict[str, Any]]]]]:
 print("saving results")
 # save_results(output)
 print("results saved")
-output = load_results()
+# output = load_results()
 
 
 def plot_results(output: Dict[str, Dict[str, Dict[str, List[Dict[str,
