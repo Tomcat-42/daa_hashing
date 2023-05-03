@@ -1,6 +1,8 @@
 import os
 from enum import Enum
 from typing import Any, Callable, Dict, List
+from pprint import pprint as pp
+
 
 # File parsing
 from pyaon.hashing import (load)
@@ -10,7 +12,7 @@ from pydaa.hashing import (open_addressing_hash_table,
                            separate_chaining_hash_table)
 
 # Hash functions
-from hash_functions import (knuth_multiplicative_method_hash, modulo_hash)
+from hash_functions import (modulo_hash, knuth_multiplicative_method_hash)
 
 # Visualizations
 from picods import (picoplot, picotable)
@@ -57,43 +59,16 @@ hash_functions = {
     # "xor": xor_hash,
     # "minus": minus_hash,
     # "multiplicative_method": multiplicative_method_hash,
-    # "knuth_multiplicative_method": knuth_multiplicative_method_hash,
+    "knuth_multiplicative_method": knuth_multiplicative_method_hash,
     # "murmur_hash3_x86_32": murmur_hash3_x86_32_hash,
     # "farm_hash": farm_hash_hash,
     # "city_hash": city_hash_hash,
 }
 
-# Results construction
-## I have 2 types of hash maps: open addressing and separate chaining, which I construct with: *_hash_table(table_size: int, hash_function: Callable[[int], int])
-## I have multiple hash functions. I construct them with: hash_functions["hash_function_name"](table_size: int) -> Callable[[int], int]
-## I have 2 types of data: data_build and data_search. Each entry in this list is a dictionary with 2 keys: "size" and "data". "size" is the size of the hash table, and "data" is the data to be inserted/searched.
-## I have 2 types of operations: insert and search. both methods return (inserion: bool, time: int, comparisons: int)
-
-# I want a output like this:
-# output = {
-#     "build": {
-#         "open_addressing": {
-#             "identity": [{"size": 100, "time": 0.001, "comparisons": 40}, ..., {"size": 1000, "time": 0.001, "comparisons": 40}],
-#             ...,
-#             "city_hash": {"""}
-#         },
-#         "separate_chaining": {"""},
-#     },
-#     "search": {"""},
-# }
-
-# some info:
-# data_build and data_search have the same size and looks like [{"size": 50, "data": [1, 2, 3, 4, 5]}, ...]
-# the output should be a dictionary with 2 keys: "build" and "search"
-# output["build"] and output["search"] should be a dictionary with 2 keys: "open_addressing" and "separate_chaining"
-# output["build"]["open_addressing"] and output["build"]["separate_chaining"] should be a dictionary with 12 various keys (hash function names)
-# output["build"]["open_addressing"]["identity"] should be a list of dictionaries with 3 keys: "size", "time", "comparisons"
-# The key "size" should be the same as the key "size" in data_build and data_search
-# The key "time" should be the time it took to insert/search all the data in data_build and data_search
-# The key "comparisons" should be the number of comparisons it took to insert/search all the data in data_build and data_search
-# "time" and "comparisons" are obtained by calling the insert/search methods on the hash table constructed with the hash function and the data
-
-# now, implements the code to generate the output. show me only new code, not the code I gave you.
+hash_tables = {
+    "open_addressing": open_addressing_hash_table,
+    "separate_chaining": separate_chaining_hash_table,
+}
 
 
 class Operation(Enum):
@@ -101,19 +76,34 @@ class Operation(Enum):
     SEARCH = "search"
 
 
+def build_hash_tables(
+    data_sizes: List[int], hash_tables: Dict[str, Callable[..., Any]],
+    hash_functions: Dict[str, Callable[[int], Callable[[int], int]]]
+) -> Dict[str, Dict[str, Dict[int, Any]]]:
+    constructed_hash_tables = {}
+
+    for table_type, table_constructor in hash_tables.items():
+        constructed_hash_tables[table_type] = {}
+
+        for hash_func_name, hash_func_constructor in hash_functions.items():
+            constructed_hash_tables[table_type][hash_func_name] = {}
+
+            for data_size in data_sizes:
+                hash_func = hash_func_constructor(500)
+                table = table_constructor(500, hash_func)
+                constructed_hash_tables[table_type][hash_func_name][
+                    data_size] = table
+
+    return constructed_hash_tables
+
+
+# process_data function
 def process_data(
         data: List[Dict[str, Any]], hash_tables: Dict[str, Callable[..., Any]],
         hash_functions: Dict[str, Callable[[int], Callable[[int], int]]],
+        constructed_hash_tables: Dict[str, Dict[str, Dict[int, Any]]],
         operation: Operation) -> Dict[str, Dict[str, List[Dict[str, Any]]]]:
     results: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
-
-    # print(f"operation: {operation.value}")
-    # print(f"hash_tables: {hash_tables.keys()}")
-    # print(f"hash_functions: {hash_functions.keys()}")
-    # print(f"data: {data}")
-
-    if operation == Operation.SEARCH:
-        print(hash_tables["open_addressing"])
 
     for table_type, table_constructor in hash_tables.items():
         results[table_type] = {}
@@ -122,10 +112,12 @@ def process_data(
             results[table_type][hash_func_name] = []
 
             for data_entry in data:
+                print(
+                    f"Processing {table_type} {hash_func_name} {data_entry['size']} on {operation.value}"
+                )
                 table_size = data_entry["size"]
-                # table_size = 500
-                hash_func = hash_func_constructor(table_size)
-                table = table_constructor(table_size, hash_func)
+                table = constructed_hash_tables[table_type][hash_func_name][
+                    table_size]
 
                 total_time = 0
                 comparisons = 0
@@ -139,12 +131,6 @@ def process_data(
                     comparisons += comp
                     total_time += time
 
-                # if comparisons == 0:
-                #     print(f"table_type: {table_type}")
-                #     print(f"hash_func_name: {hash_func_name}")
-                #     print(f"table_size: {table_size}")
-                #     print()
-
                 results[table_type][hash_func_name].append({
                     "size":
                     table_size,
@@ -157,26 +143,25 @@ def process_data(
     return results
 
 
-hash_tables = {
-    "open_addressing": open_addressing_hash_table,
-    "separate_chaining": separate_chaining_hash_table,
-}
+# Build hash tables for all combinations of table type, hash function, and data size
+constructed_hash_tables = build_hash_tables(
+    [entry["size"] for entry in data_build], hash_tables, hash_functions)
 
-output = {
-    "build":
-    process_data(data_build[0:1],
-                 hash_tables,
-                 hash_functions,
-                 operation=Operation.INSERT),
-    "search":
-    process_data(data_search[0:1],
-                 hash_tables,
-                 hash_functions,
-                 operation=Operation.SEARCH),
-}
-
-# pp(output)
-
+# Generate output
+# output = {
+#     "build":
+#     process_data(data_build,
+#                  hash_tables,
+#                  hash_functions,
+#                  constructed_hash_tables,
+#                  operation=Operation.INSERT),
+#     "search":
+#     process_data(data_search,
+#                  hash_tables,
+#                  hash_functions,
+#                  constructed_hash_tables,
+#                  operation=Operation.SEARCH),
+# }
 
 def save_results(output: Dict[str, Dict[str, Dict[str, List[Dict[str,
                                                                  Any]]]]]):
@@ -190,9 +175,9 @@ def load_results() -> Dict[str, Dict[str, Dict[str, List[Dict[str, Any]]]]]:
 
 
 print("saving results")
-save_results(output)
+# save_results(output)
 print("results saved")
-# output = load_results()
+output = load_results()
 
 
 def plot_results(output: Dict[str, Dict[str, Dict[str, List[Dict[str,
@@ -263,4 +248,5 @@ def plot_results(output: Dict[str, Dict[str, Dict[str, List[Dict[str,
 
 
 # Call the plot_results function with the output dictionary
-# plot_results(output)
+# pp(output)
+plot_results(output)
